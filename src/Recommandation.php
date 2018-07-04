@@ -5,47 +5,23 @@ class Recommandation
 
     public static function getForProduct($name, $history)
     {
-        $containsProductNamed = function ($name) {
-            return function ($order) use ($name) {
-                // Is the product part of this order?
-                foreach ($order['products'] as $product) {
-                    if ($product['name'] === $name) {
-                        return true;
-                    }
-                }
-                return false;
-            };
-        };
-
-        $ordersContainingProduct = array_filter($history, $containsProductNamed($name));
-
-        $otherOrderedProducts = array_filter(
-            flatten(array_map(get('products'), $ordersContainingProduct)),
-            isDifferentFrom($name, get('name'))
-        );
-
-
-        $sumQty = function ($products) {
-            return array_sum(array_map(get('qty'), $products));
-        };
-
         $countersPerProduct = array_map(
-            $sumQty,
-            array_reduce($otherOrderedProducts, groupBy('name'), [])
+            function ($products) {
+                return array_sum(array_map(get('qty'), $products));
+            },
+            array_reduce(array_filter(
+                flatten(array_map(get('products'), array_filter($history, function ($order) use ($name) {
+                    return in_array($name, array_map(
+                        get('name'),
+                        get('products')($order)
+                    ));
+                }))),
+                isDifferentFrom($name, get('name'))
+            ), groupBy('name'), [])
         );
-        $results = array_keys($countersPerProduct);
 
-        // Sort results with most purchased first
-        $qtyPurchased = function ($name) use ($countersPerProduct) {
-            return $countersPerProduct[$name];
-        };
-
-        $byQtyPurchasedDesc = udesc($qtyPurchased);
-
-
-        usort($results, $byQtyPurchasedDesc);
-
-        return $results;
+        arsort($countersPerProduct);
+        return array_keys($countersPerProduct);
     }
 
 }
@@ -87,4 +63,22 @@ function udesc($getValue): Closure
 function desc($comparedB, $comparedA): int
 {
     return $comparedB <=> $comparedA;
+}
+
+function id($x)
+{
+    return $x;
+}
+
+function compose(...$functions)
+{
+    return array_reduce(
+        $functions,
+        function ($carry, $item) {
+            return function ($x) use ($carry, $item) {
+                return $item($carry($x));
+            };
+        },
+        'id'
+    );
 }
