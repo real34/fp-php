@@ -5,43 +5,86 @@ class Recommandation
 
     public static function getForProduct($name, $history)
     {
-        $results = [];
-        $countersPerProduct = [];
-
-        foreach ($history as $order) {
-            // Is the product part of this order?
-            $found = false;
-            foreach ($order['products'] as $product) {
-                if ($product['name'] === $name) {
-                    $found = true;
-                }
-            }
-
-            if ($found) {
-                // If Yes, let’s add the other products to $results
+        $containsProductNamed = function ($name) {
+            return function ($order) use ($name) {
+                // Is the product part of this order?
                 foreach ($order['products'] as $product) {
-                    // Prevent adding the product itself
-                    if ($product['name'] !== $name) {
-                        // Only add the recommended product once
-                        if (!in_array($product['name'], $results)) {
-                            $results[] = $product['name'];
-                        }
-
-                        // Maintain another counter of occurences to sort by qty later
-                        if (!array_key_exists($product['name'], $countersPerProduct)) {
-                            $countersPerProduct[$product['name']] = 0;
-                        }
-                        $countersPerProduct[$product['name']] += $product['qty'];
+                    if ($product['name'] === $name) {
+                        return true;
                     }
                 }
-            }
-        }
+                return false;
+            };
+        };
+
+        $ordersContainingProduct = array_filter($history, $containsProductNamed($name));
+
+        $otherOrderedProducts = array_filter(
+            flatten(array_map(get('products'), $ordersContainingProduct)),
+            isDifferentFrom($name, get('name'))
+        );
+
+
+        $sumQty = function ($products) {
+            return array_sum(array_map(get('qty'), $products));
+        };
+
+        $countersPerProduct = array_map(
+            $sumQty,
+            array_reduce($otherOrderedProducts, groupBy('name'), [])
+        );
+        $results = array_keys($countersPerProduct);
 
         // Sort results with most purchased first
-        usort($results, function ($a, $b) use ($countersPerProduct) {
-            return $countersPerProduct[$b] <=> $countersPerProduct[$a];
-        });
+        $qtyPurchased = function ($name) use ($countersPerProduct) {
+            return $countersPerProduct[$name];
+        };
+
+        $byQtyPurchasedDesc = udesc($qtyPurchased);
+
+
+        usort($results, $byQtyPurchasedDesc);
 
         return $results;
     }
+
+}
+
+function isDifferentFrom($from, $getValue)
+{
+    return function ($item) use ($from, $getValue) {
+        return $getValue($item) !== $from;
+    };
+}
+
+function flatten($array): array
+{
+    return array_reduce($array, 'array_merge', []);
+}
+
+function groupBy($key): Closure
+{
+    return function ($acc, $array) use ($key) {
+        $acc[get($key)($array)][] = $array;
+        return $acc;
+    };
+}
+
+function get($key): Closure
+{
+    return function ($array) use ($key) {
+        return $array[$key];
+    };
+}
+
+function udesc($getValue): Closure
+{
+    return function ($a, $b) use ($getValue) {
+        return desc($getValue($b), $getValue($a));
+    };
+}
+
+function desc($comparedB, $comparedA): int
+{
+    return $comparedB <=> $comparedA;
 }
