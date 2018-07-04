@@ -4,17 +4,18 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use PHPUnit\Framework\TestCase;
 
+// FUNCTIONAL PROGRAMMING JARGON Github
 class RecommandationTest extends TestCase
 {
     public function testShouldReturnNoRecommandationWhenNoHistory()
     {
-        $actual = Recommandation::getForProduct('Fairphone', []);
+        $actual = Recommandation::getForProduct('Fairphone')([]);
         $this->assertEquals([], $actual);
     }
 
     public function testShouldReturnProductsOfOtherOrdersContainingTheInitial()
     {
-        $actual = Recommandation::getForProduct('Fairphone', [
+        $actual = Recommandation::getForProduct('Fairphone')([
             [
                 'id' => 'order-1',
                 'products' => [
@@ -50,7 +51,7 @@ class RecommandationTest extends TestCase
 
     public function testShouldReturnMostOrderedProductsFirst()
     {
-        $actual = Recommandation::getForProduct('Fairphone', [
+        $actual = Recommandation::getForProduct('Fairphone')([
             [
                 'id' => 'order-1',
                 'products' => [
